@@ -1,0 +1,52 @@
+##################
+### Question 5 ###
+##################
+library(MuMIn)
+
+file.choose()
+punc <- read.csv("C:\\Users\\Andrew\\OneDrive\\Documents\\BIOL 57774\\Exam\\O.punc.occu.riff&run.noFlat.pres.covars.stand.csv")
+
+# holding onto what I need
+punc <- punc %>%
+  select(TOTSURV, SEG_ORDER, DEPTHL10, SEG_PH,
+         VELL10, GEOL3ASN, LANDF6ASN, FORESTASN, SLOPE)
+# making occurrence integer
+punc$TOTSURV <- as.integer(punc$TOTSURV)
+
+### checking multicollinearity
+cor_mat <- cor(punc[, -1])
+round(cor_mat, 3)
+# SEG_ORDER and VELL10 are correlated (0.55) and so are
+# SEG_ORDER and SLOPE (-0.65), but I will check VIF to see if this will
+# be problematic.
+
+### going to assume other assumptions are met since necessary transforms ###
+### have been done and predictors have been standardized ###
+
+library(car)
+# binomial logistic model because response is binary
+full_mod <- glm(TOTSURV ~ SEG_ORDER + DEPTHL10 + SEG_PH +
+                  VELL10 + GEOL3ASN + LANDF6ASN + FORESTASN + SLOPE,
+                data = punc, family = binomial)
+vif(full_mod)
+# all VIF < 5 = should be good.
+
+# gonna do AIC model selection using MuMIn::dredge()
+options(na.action = "na.fail")
+all_models <- dredge(full_mod, rank = "AIC")
+# look at top models
+head(all_models, 10)
+# models within 2 AIC of top
+subset(all_models, delta <= 2)
+## there are several good models (at least 7 within 2 AIC including top)
+
+# best model?
+best_mod <- get.models(all_models, 1)[[1]]
+summary(best_mod)
+# best model includes FORESTASN, LANDF6ASN, SEG_ORDER, SEG_PH, SLOPE, and VELL10
+
+# McFadden R2 of best model
+1 - (best_mod$deviance / best_mod$null.deviance) # <- 0.608
+
+# odds ratio of best model
+exp(cbind(OR = coef(best_mod), confint(best_mod)))
