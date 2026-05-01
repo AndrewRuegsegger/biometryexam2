@@ -1,5 +1,9 @@
+##################
+### Question 1 ###
+##################
 library(dplyr)
-library(car)
+library(tidyr)
+library(ggplot2)
 
 file.choose()
 leaf <- read.csv("C:\\Users\\Andrew\\OneDrive\\Documents\\BIOL 57774\\Exam\\leaf pack biometry.csv")
@@ -11,10 +15,6 @@ leaf %>%
   group_by(Species, Drying) %>%
   summarise(
     n         = n(),
-    mean_Old  = round(mean(PerAFDM_Old), 4),
-    sd_Old    = round(sd(PerAFDM_Old), 4),
-    mean_New  = round(mean(PerAFDM_New), 4),
-    sd_New    = round(sd(PerAFDM_New), 4),
     .groups = "drop"
   )
 # balanced design ^
@@ -100,4 +100,3 @@ TukeyHSD(old_model, which = "Drying")
 # non-drought has more breakdown in old leaves
 TukeyHSD(new_model, which = "Drying")
 # non-drought has more breakdown in new leaves
-
