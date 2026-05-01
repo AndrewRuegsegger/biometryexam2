@@ -1,0 +1,88 @@
+##################
+### Question 2 ###
+##################
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+
+file.choose()
+otolith <- read.csv("C:\\Users\\Andrew\\OneDrive\\Documents\\BIOL 57774\\Exam\\Ratio means exam 2016.csv")
+
+# holding onto what I need
+otolith <- otolith %>%
+  filter(STATISTC == "Mean") %>%
+  select(SITE, FISH_ID, SRCA_EDG, SRCA_E1, SRCA_E2) %>%
+  filter(!is.na(SRCA_EDG) & !is.na(SRCA_E1) & !is.na(SRCA_E2))
+# making factors
+otolith$SITE <- as.factor(otolith$SITE)
+otolith$FISH_ID <- as.factor(otolith$FISH_ID)
+
+# sample size per site
+table(otolith$SITE)
+# unbalanced
+
+### checking normality
+ggplot(data = otolith, aes(x = SRCA_EDG)) + geom_histogram()
+ggplot(data = otolith, aes(x = SRCA_E1))  + geom_histogram()
+ggplot(data = otolith, aes(x = SRCA_E2))  + geom_histogram()
+
+edg_mod <- aov(SRCA_EDG ~ SITE, data = otolith)
+e1_mod  <- aov(SRCA_E1  ~ SITE, data = otolith)
+e2_mod  <- aov(SRCA_E2  ~ SITE, data = otolith)
+
+par(mfrow = c(2, 3), mar = c(4, 4, 3, 1))
+qqnorm(residuals(edg_mod)); qqline(residuals(edg_mod), col = "red", lwd = 2)
+qqnorm(residuals(e1_mod));  qqline(residuals(e1_mod),  col = "red", lwd = 2)
+qqnorm(residuals(e2_mod));  qqline(residuals(e2_mod),  col = "red", lwd = 2)
+hist(residuals(edg_mod))
+hist(residuals(e1_mod))
+hist(residuals(e2_mod))
+par(mfrow = c(1, 1))
+## normality looks good; a little strange for e2, but I'm gonna move forward for now
+
+### checking homoescedasticity
+ggplot(data = otolith, aes(x = SITE, y = SRCA_EDG)) +
+  geom_boxplot(aes(fill = SITE)) + theme_bw()
+ggplot(data = otolith, aes(x = SITE, y = SRCA_E1)) +
+  geom_boxplot(aes(fill = SITE)) + theme_bw()
+ggplot(data = otolith, aes(x = SITE, y = SRCA_E2)) +
+  geom_boxplot(aes(fill = SITE)) + theme_bw()
+
+par(mfrow = c(1, 3), mar = c(4, 4, 3, 1))
+plot(fitted(edg_mod), residuals(edg_mod)); abline(h = 0, col = "red", lwd = 2, lty = 2)
+plot(fitted(e1_mod),  residuals(e1_mod));  abline(h = 0, col = "red", lwd = 2, lty = 2)
+plot(fitted(e2_mod),  residuals(e2_mod));  abline(h = 0, col = "red", lwd = 2, lty = 2)
+## residuals look good
+par(mfrow = c(1, 1))
+
+### checking multivariate normality
+resp_mat <- as.matrix(otolith[, c("SRCA_EDG", "SRCA_E1", "SRCA_E2")])
+center   <- colMeans(resp_mat)
+cov_mat  <- cov(resp_mat)
+mah_dist <- mahalanobis(resp_mat, center, cov_mat)
+chi_q    <- qchisq(ppoints(nrow(otolith)), df = 3)  # df = 3 responses
+
+plot(sort(chi_q), sort(mah_dist))
+abline(0, 1, col = "red", lwd = 2)
+## again, there is an outlier, but I don't think it will affect things too much
+
+### fitting a one-way MANOVA ###
+responses <- cbind(otolith$SRCA_EDG,
+                   otolith$SRCA_E1,
+                   otolith$SRCA_E2)
+
+model <- manova(responses ~ SITE, data = otolith)
+
+summary(model, test = "Pillai")
+## significant differences among sites ( p < 0.001)
+
+summary.aov(model)
+## significant differences among sites for each year
+
+### Tukey for each year
+TukeyHSD(aov(SRCA_EDG ~ SITE, data = otolith))
+# differences b/t all sites
+TukeyHSD(aov(SRCA_E1 ~ SITE, data = otolith))
+# differences b/t all sites except for b/t LB-BR
+TukeyHSD(aov(SRCA_E2 ~ SITE, data = otolith))
+# differences b/t all sites, but marginal significance b/t LB-BR
