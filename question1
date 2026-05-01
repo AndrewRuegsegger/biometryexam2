@@ -1,0 +1,103 @@
+library(dplyr)
+library(car)
+
+file.choose()
+leaf <- read.csv("C:\\Users\\Andrew\\OneDrive\\Documents\\BIOL 57774\\Exam\\leaf pack biometry.csv")
+
+str(leaf)
+head(leaf)
+
+leaf %>%
+  group_by(Species, Drying) %>%
+  summarise(
+    n         = n(),
+    mean_Old  = round(mean(PerAFDM_Old), 4),
+    sd_Old    = round(sd(PerAFDM_Old), 4),
+    mean_New  = round(mean(PerAFDM_New), 4),
+    sd_New    = round(sd(PerAFDM_New), 4),
+    .groups = "drop"
+  )
+# balanced design ^
+
+# making as factors
+leaf$Species <- as.factor(leaf$Species)
+leaf$Drying  <- as.factor(leaf$Drying)
+
+### checking normality
+ggplot(data=leaf, aes(x=PerAFDM_Old)) +
+  geom_histogram()
+ggplot(data=leaf, aes(x=PerAFDM_New)) +
+  geom_histogram()
+
+old_mod <- aov(PerAFDM_Old ~ Species * Drying, data = leaf)
+new_mod <- aov(PerAFDM_New ~ Species * Drying, data = leaf)
+
+par(mfrow = c(2, 2), mar = c(4, 4, 3, 1))
+
+qqnorm(residuals(old_mod))
+qqline(residuals(old_mod), col = "red", lwd = 2)
+
+qqnorm(residuals(new_mod))
+qqline(residuals(new_mod), col = "red", lwd = 2)
+
+hist(residuals(old_mod))
+hist(residuals(new_mod))
+## normality looks good
+
+### checking homoscedasticity
+ggplot(data = leaf, aes(x = Species, y = PerAFDM_Old)) + 
+  geom_boxplot(aes(fill = Drying)) + 
+  theme_bw()
+ggplot(data = leaf, aes(x = Species, y = PerAFDM_New)) + 
+  geom_boxplot(aes(fill = Drying)) + 
+  theme_bw()
+
+par(mfrow = c(1, 2), mar = c(4, 4, 3, 1))
+
+plot(fitted(old_mod), residuals(old_mod))
+abline(h = 0, col = "red", lwd = 2, lty = 2)
+
+plot(fitted(new_mod), residuals(new_mod))
+abline(h = 0, col = "red", lwd = 2, lty = 2)
+## residuals look good
+par(mfrow = c(1, 1))
+
+### checking multivariate normality
+responses <- cbind(leaf$PerAFDM_Old, leaf$PerAFDM_New)
+center  <- colMeans(responses)
+cov_mat <- cov(responses)
+mah_dist <- mahalanobis(responses, center, cov_mat)
+chi_quantiles <- qchisq(ppoints(nrow(leaf)), df = 2)
+
+plot(sort(chi_quantiles), sort(mah_dist))
+abline(0, 1, col = "red", lwd = 2)
+## looks pretty good, but there is an outlier it looks like around 8 ...
+# but it's probably fine.
+
+### fitting MANOVA
+# response matrix
+responses <- cbind(leaf$PerAFDM_Old, leaf$PerAFDM_New)
+model <- manova(responses ~ Species * Drying, data = leaf)
+# Pillai's Trace
+summary(model, test = "Pillai")
+# Wilks Lambda (just to see difference)
+summary(model, test = "Wilks")
+
+### univariate anovas
+summary.aov(model)
+
+### Tukey pairwise comparisons
+## species effects
+TukeyHSD(old_model, which = "Species")
+# species do not differ in breakdown rates of old leaves,
+# but crayfish presence does increase breakdown rates
+TukeyHSD(new_model, which = "Species")
+# species do not differ in breakdown rates of new leaves
+# but crayfish presence does increase breakdown rates 
+
+## drought effects
+TukeyHSD(old_model, which = "Drying")
+# non-drought has more breakdown in old leaves
+TukeyHSD(new_model, which = "Drying")
+# non-drought has more breakdown in new leaves
+
